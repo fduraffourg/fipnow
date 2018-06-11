@@ -7,29 +7,28 @@ import Data.Aeson.Lens (_String, key)
 import Data.Aeson
 import Data.Text (unpack)
 import Data.Maybe
+import Data.List
+import qualified Data.HashMap.Strict as HM
 
 data Song = Song { title :: String
                  , artist :: String
                  , album :: String
                  }
 
+parseSong :: Value -> Song
 parseSong obj = let
     unpackWithDefault v = Data.Maybe.fromMaybe "..." $ fmap unpack v
     extract id = unpackWithDefault $ obj ^? key id . _String
-    in Song (extract "titre") (extract "interpreteMorceau") (extract "titreAlbum")
+    in Song (extract "title") (extract "authors") (extract "titreAlbum")
 
 formatSong :: Song -> String
 formatSong (Song title artist album) = title ++ " -- " ++ artist ++ " -- " ++ album
 
-displaySong :: String -> Maybe Song -> IO ()
-displaySong prefix (Just song) = putStrLn $ (prefix ++ " -> " ++ formatSong song)
-displaySong prefix Nothing = putStrLn $ (prefix ++ " -> Unable to parse song")
-
 main :: IO ()
 main = do
-    r <- get "http://www.fipradio.fr/sites/default/files/import_si/si_titre_antenne/FIP_player_current.json"
-    displaySong "current  " $ fmap parseSong $ r ^? responseBody . key "current" . key "song"
-    displaySong "next     " $ fmap parseSong $ r ^? responseBody . key "next1" . key "song"
-    displaySong "previous1" $ fmap parseSong $ r ^? responseBody . key "previous1" . key "song"
-    displaySong "previous2" $ fmap parseSong $ r ^? responseBody . key "previous2" . key "song"
-
+    r <- get "https://www.fip.fr/livemeta/7"
+    let songs = case r ^? responseBody . key "steps" of
+                    Just (Object hm) -> HM.elems hm
+                    _ -> []
+    let lines = fmap (formatSong . parseSong) songs
+    putStrLn $ concat $ intersperse "\n" lines
