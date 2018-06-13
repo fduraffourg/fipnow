@@ -17,6 +17,6 @@ executable fipnow
   main-is:             Main.hs
   -- other-modules:       
   -- other-extensions:    
-  build-depends:       base, wreq, lens, aeson, lens-aeson, text
+  build-depends:       base, wreq, lens, aeson, lens-aeson, text, time
   -- hs-source-dirs:      
   default-language:    Haskell2010

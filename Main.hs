@@ -3,33 +3,46 @@ module Main where
 
 import Network.Wreq
 import Control.Lens
-import Data.Aeson.Lens (_String, key)
+import Data.Aeson.Lens
 import Data.Aeson
-import Data.Text (unpack)
+import qualified Data.Text as T
 import Data.Maybe
+import Data.List
+import Data.Time.Clock
+import Data.Time.Clock.POSIX
 
-data Song = Song { title :: String
-                 , artist :: String
-                 , album :: String
+data Song = Song { title :: T.Text
+                 , artist :: T.Text
+                 , album :: T.Text
+                 , startTime :: NominalDiffTime
+                 , end :: NominalDiffTime
                  }
 
+instance Eq Song where
+    (==) (Song _ _ _ a _) (Song _ _ _ b _) = a == b
+
+instance Ord Song where
+    compare (Song _ _ _ a _) (Song _ _ _ b _) = compare a b
+
+parseSong :: Value -> Song
 parseSong obj = let
-    unpackWithDefault v = Data.Maybe.fromMaybe "..." $ fmap unpack v
+    unpackWithDefault v = T.toTitle $ Data.Maybe.fromMaybe "..." v
     extract id = unpackWithDefault $ obj ^? key id . _String
-    in Song (extract "titre") (extract "interpreteMorceau") (extract "titreAlbum")
+    extractTime id = fromIntegral (Data.Maybe.fromMaybe 0 $ obj ^? key id . _Integer)
+    in Song (extract "title") (extract "authors") (extract "titreAlbum") (extractTime "start") (extractTime "end")
 
-formatSong :: Song -> String
-formatSong (Song title artist album) = title ++ " -- " ++ artist ++ " -- " ++ album
-
-displaySong :: String -> Maybe Song -> IO ()
-displaySong prefix (Just song) = putStrLn $ (prefix ++ " -> " ++ formatSong song)
-displaySong prefix Nothing = putStrLn $ (prefix ++ " -> Unable to parse song")
+formatSong :: NominalDiffTime -> Song -> String
+formatSong now (Song title artist album start end) = if (start <= now && now < end)
+    then " --> " ++ line ++ " <--"
+    else "     " ++ line
+    where line = (T.unpack artist) ++ " | " ++ (T.unpack title) ++ " | ( album: " ++ (T.unpack album) ++ " )"
 
 main :: IO ()
 main = do
-    r <- get "http://www.fipradio.fr/sites/default/files/import_si/si_titre_antenne/FIP_player_current.json"
-    displaySong "current  " $ fmap parseSong $ r ^? responseBody . key "current" . key "song"
-    displaySong "next     " $ fmap parseSong $ r ^? responseBody . key "next1" . key "song"
-    displaySong "previous1" $ fmap parseSong $ r ^? responseBody . key "previous1" . key "song"
-    displaySong "previous2" $ fmap parseSong $ r ^? responseBody . key "previous2" . key "song"
-
+    r <- get "https://www.fip.fr/livemeta/7"
+    let songObjects = r ^.. responseBody . key "steps" . members
+    let songs = fmap parseSong songObjects
+    let orderedSongs = sort songs
+    now <- getPOSIXTime
+    let lines = fmap (formatSong now) orderedSongs
+    putStrLn $ concat $ intersperse "\n" lines
