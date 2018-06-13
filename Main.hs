@@ -3,17 +3,17 @@ module Main where
 
 import Network.Wreq
 import Control.Lens
-import Data.Aeson.Lens (_String, key, _Integer)
+import Data.Aeson.Lens
 import Data.Aeson
-import Data.Text (unpack)
+import qualified Data.Text as T
 import Data.Maybe
 import Data.List
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 
-data Song = Song { title :: String
-                 , artist :: String
-                 , album :: String
+data Song = Song { title :: T.Text
+                 , artist :: T.Text
+                 , album :: T.Text
                  , startTime :: NominalDiffTime
                  , end :: NominalDiffTime
                  }
@@ -26,7 +26,7 @@ instance Ord Song where
 
 parseSong :: Value -> Song
 parseSong obj = let
-    unpackWithDefault v = Data.Maybe.fromMaybe "..." $ fmap unpack v
+    unpackWithDefault v = T.toTitle $ Data.Maybe.fromMaybe "..." v
     extract id = unpackWithDefault $ obj ^? key id . _String
     extractTime id = fromIntegral (Data.Maybe.fromMaybe 0 $ obj ^? key id . _Integer)
     in Song (extract "title") (extract "authors") (extract "titreAlbum") (extractTime "start") (extractTime "end")
@@ -35,7 +35,7 @@ formatSong :: NominalDiffTime -> Song -> String
 formatSong now (Song title artist album start end) = if (start <= now && now < end)
     then " --> " ++ line ++ " <--"
     else "     " ++ line
-    where line = title ++ " -- " ++ artist ++ " -- " ++ album
+    where line = (T.unpack artist) ++ " | " ++ (T.unpack title) ++ " | ( album: " ++ (T.unpack album) ++ " )"
 
 main :: IO ()
 main = do
