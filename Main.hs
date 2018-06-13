@@ -10,7 +10,6 @@ import Data.Maybe
 import Data.List
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
-import qualified Data.HashMap.Strict as HM
 
 data Song = Song { title :: String
                  , artist :: String
@@ -41,9 +40,7 @@ formatSong now (Song title artist album start end) = if (start <= now && now < e
 main :: IO ()
 main = do
     r <- get "https://www.fip.fr/livemeta/7"
-    let songObjects = case r ^? responseBody . key "steps" of
-                        Just (Object hm) -> HM.elems hm
-                        _ -> []
+    let songObjects = r ^.. responseBody . key "steps" . members
     let songs = fmap parseSong songObjects
     let orderedSongs = sort songs
     now <- getPOSIXTime

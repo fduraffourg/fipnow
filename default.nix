@@ -5,7 +5,7 @@ let
   inherit (nixpkgs) pkgs;
 
   f = { mkDerivation, aeson, base, lens, lens-aeson, stdenv, text
-      , time, unordered-containers, wreq
+      , time, wreq
       }:
       mkDerivation {
         pname = "fipnow";
@@ -14,7 +14,7 @@ let
         isLibrary = false;
         isExecutable = true;
         executableHaskellDepends = [
-          aeson base lens lens-aeson text time unordered-containers wreq
+          aeson base lens lens-aeson text time wreq
         ];
         license = stdenv.lib.licenses.bsd3;
       };
