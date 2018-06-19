@@ -31,11 +31,15 @@ parseSong obj = let
     extractTime id = fromIntegral (Data.Maybe.fromMaybe 0 $ obj ^? key id . _Integer)
     in Song (extract "title") (extract "authors") (extract "titreAlbum") (extractTime "start") (extractTime "end")
 
-formatSong :: NominalDiffTime -> Song -> String
+formatSong :: NominalDiffTime -> Song -> [String]
 formatSong now (Song title artist album start end) = if (start <= now && now < end)
-    then " --> " ++ line ++ " <--"
-    else "     " ++ line
-    where line = (T.unpack artist) ++ " | " ++ (T.unpack title) ++ " | ( album: " ++ (T.unpack album) ++ " )"
+    then prepend " --> " "     " lines
+    else prepend "   - " "     " lines
+    where
+        prepend a b (first:rest) = (a ++ first) : (fmap ((++) b) rest)
+        lines = [(T.unpack artist) ++ " | " ++ (T.unpack title)
+                ,"  album: " ++ (T.unpack album)
+                ]
 
 main :: IO ()
 main = do
@@ -44,5 +48,5 @@ main = do
     let songs = fmap parseSong songObjects
     let orderedSongs = sort songs
     now <- getPOSIXTime
-    let lines = fmap (formatSong now) orderedSongs
+    let lines = orderedSongs >>= formatSong now
     putStrLn $ concat $ intersperse "\n" lines
