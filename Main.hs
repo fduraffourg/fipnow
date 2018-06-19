@@ -10,6 +10,8 @@ import Data.Maybe
 import Data.List
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
+import System.Console.ANSI
+import System.Console.ANSI.Types
 
 data Song = Song { title :: T.Text
                  , artist :: T.Text
@@ -33,13 +35,16 @@ parseSong obj = let
 
 formatSong :: NominalDiffTime -> Song -> [String]
 formatSong now (Song title artist album start end) = if (start <= now && now < end)
-    then prepend " --> " "     " lines
+    then bold $ prepend " --> " "     " lines
     else prepend "   - " "     " lines
     where
         prepend a b (first:rest) = (a ++ first) : (fmap ((++) b) rest)
-        lines = [(T.unpack artist) ++ " | " ++ (T.unpack title)
-                ,"  album: " ++ (T.unpack album)
+        bold t = fmap (\l -> setSGRCode [SetConsoleIntensity BoldIntensity] ++ l ++ setSGRCode [Reset]) t
+        lines = [ fArtist ++ " | " ++ fTitle
+                , "  album: " ++ (T.unpack album)
                 ]
+        fArtist = T.unpack artist
+        fTitle = T.unpack title
 
 main :: IO ()
 main = do

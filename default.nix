@@ -1,5 +1,5 @@
-{ mkDerivation, aeson, base, lens, lens-aeson, stdenv, text, time
-, wreq
+{ mkDerivation, aeson, ansi-terminal, base, lens, lens-aeson
+, stdenv, text, time, wreq
 }:
 mkDerivation {
   pname = "fipnow";
@@ -8,7 +8,7 @@ mkDerivation {
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [
-    aeson base lens lens-aeson text time wreq
+    aeson ansi-terminal base lens lens-aeson text time wreq
   ];
   license = stdenv.lib.licenses.bsd3;
 }
