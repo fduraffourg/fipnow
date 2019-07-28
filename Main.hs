@@ -1,57 +1,73 @@
 {-# LANGUAGE OverloadedStrings #-}
+
 module Main where
 
-import Network.Wreq
 import Control.Lens
-import Data.Aeson.Lens
 import Data.Aeson
-import qualified Data.Text as T
-import Data.Maybe
+import Data.Aeson.Lens
 import Data.List
+import Data.Maybe
+import qualified Data.Text as T
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
+import Network.Wreq
 import System.Console.ANSI
 import System.Console.ANSI.Types
 
-data Song = Song { title :: T.Text
-                 , artist :: T.Text
-                 , album :: T.Text
-                 , startTime :: NominalDiffTime
-                 , end :: NominalDiffTime
-                 }
+fipMetadataUrl =
+  "https://www.fip.fr/latest/api/graphql?operationName=Now&variables=%7B%22bannerPreset%22%3A%22600x600-noTransform%22%2C%22stationId%22%3A7%2C%22previousTrackLimit%22%3A3%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%228a931c7d177ff69709a79f4c213bd2403f0c11836c560bc22da55628d8100df8%22%7D%7D"
+
+data Song =
+  Song
+    { title :: T.Text
+    , artist :: T.Text
+    , isCurrentSong :: Bool
+    , startTime :: Int
+    }
 
 instance Eq Song where
-    (==) (Song _ _ _ a _) (Song _ _ _ b _) = a == b
+  (==) (Song _ _ _ a) (Song _ _ _ b) = a == b
 
 instance Ord Song where
-    compare (Song _ _ _ a _) (Song _ _ _ b _) = compare a b
+  compare (Song _ _ _ a) (Song _ _ _ b) = compare a b
 
-parseSong :: Value -> Song
-parseSong obj = let
-    unpackWithDefault v = T.toTitle $ Data.Maybe.fromMaybe "..." v
-    extract id = unpackWithDefault $ obj ^? key id . _String
-    extractTime id = fromIntegral (Data.Maybe.fromMaybe 0 $ obj ^? key id . _Integer)
-    in Song (extract "title") (extract "authors") (extract "titreAlbum") (extractTime "start") (extractTime "end")
+parseSong :: Bool -> Value -> Song
+parseSong isCurrentSong obj =
+  let unpackWithDefault v = T.toTitle $ Data.Maybe.fromMaybe "..." v
+      extract id = unpackWithDefault $ obj ^? key id . _String
+      extractTime id =
+        fromIntegral (Data.Maybe.fromMaybe 0 $ obj ^? key id . _Integer)
+   in Song
+        (extract "subtitle")
+        (extract "title")
+        isCurrentSong
+        (extractTime "start_time")
 
-formatSong :: NominalDiffTime -> Song -> [String]
-formatSong now (Song title artist album start end) = if (start <= now && now < end)
-    then bold $ prepend " --> " "     " lines
-    else prepend "   - " "     " lines
-    where
-        prepend a b (first:rest) = (a ++ first) : (fmap ((++) b) rest)
-        bold t = fmap (\l -> setSGRCode [SetConsoleIntensity BoldIntensity] ++ l ++ setSGRCode [Reset]) t
-        lines = [ fArtist ++ " | " ++ fTitle
-                , "  album: " ++ (T.unpack album)
-                ]
-        fArtist = T.unpack artist
-        fTitle = T.unpack title
+formatSong :: Song -> String
+formatSong (Song title artist isCurrentSong _) =
+  if isCurrentSong
+    then bold $ " --> " ++ line
+    else "   - " ++ line
+  where
+    prepend a b (first:rest) = (a ++ first) : (fmap ((++) b) rest)
+    bold l =
+      setSGRCode [SetConsoleIntensity BoldIntensity] ++ l ++ setSGRCode [Reset]
+    line = T.unpack artist ++ " | " ++ T.unpack title
 
 main :: IO ()
 main = do
-    r <- get "https://www.fip.fr/livemeta/7"
-    let songObjects = r ^.. responseBody . key "steps" . members
-    let songs = fmap parseSong songObjects
-    let orderedSongs = sort songs
-    now <- getPOSIXTime
-    let lines = orderedSongs >>= formatSong now
-    putStrLn $ concat $ intersperse "\n" lines
+  r <- get fipMetadataUrl
+  let previousSongsData =
+        r ^.. responseBody . key "data" . key "previousTracks" . key "edges" .
+        values .
+        key "node"
+  let currentSongData =
+        r ^? responseBody . key "data" . key "now" . key "playing_item"
+  let nextSongsData =
+        r ^.. responseBody . key "data" . key "nextTracks" . values
+  let songs =
+        fmap (parseSong False) previousSongsData ++
+        (Data.Maybe.maybeToList $ fmap (parseSong True) currentSongData) ++
+        fmap (parseSong False) nextSongsData
+  let formated = fmap formatSong . sort $ songs
+  putStrLn $ concat $ intersperse "\n" formated
